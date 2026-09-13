@@ -8,26 +8,7 @@ $pdo = getDB();
 
 $msg = $_GET['msg'] ?? '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    verifyCsrf();
-
-    if (($_POST['action'] ?? '') === 'delete_payslip') {
-        $payslipId = filter_input(INPUT_POST, 'payslip_id', FILTER_VALIDATE_INT);
-
-        if (!$payslipId) {
-            http_response_code(400);
-            die('Invalid payslip selected.');
-        }
-
-        $stmt = $pdo->prepare('DELETE FROM payroll_items WHERE id = ?');
-        $stmt->execute([$payslipId]);
-        auditLog('Payslip Deleted', "Deleted payroll item ID {$payslipId}");
-
-        $yearParam = urlencode((string) ($_POST['year'] ?? date('Y')));
-        header('Location: ' . BASE_URL . "/index.php?page=payslips_viewer&year={$yearParam}&msg=" . urlencode('Payslip deleted successfully.'));
-        exit;
-    }
-}
+$error = $_GET['error'] ?? null;
 
 $year = $_GET['year'] ?? date('Y');
 $user = getCurrentUser();
@@ -111,7 +92,7 @@ include __DIR__ . '/../includes/sidebar.php';
                         <td><span class="badge <?= getStatusBadgeClass($p['status']) ?>"><?= htmlspecialchars($p['status']) ?></span></td>
                         <td>
                             <button class="btn btn-primary btn-sm" onclick="viewMyPayslip(<?= htmlspecialchars(json_encode($p)) ?>)">View PDF</button>
-                            <form method="POST" style="display:inline;" onsubmit="return confirm('Delete this payslip? This cannot be undone.');">
+                            <form method="POST" action="<?= BASE_URL ?>/api/payslips_viewer.php" style="display:inline;" onsubmit="return confirm('Delete this payslip? This cannot be undone.');">
                                 <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
                                 <input type="hidden" name="action" value="delete_payslip">
                                 <input type="hidden" name="payslip_id" value="<?= (int) $p['id'] ?>">
@@ -127,6 +108,9 @@ include __DIR__ . '/../includes/sidebar.php';
         </div>
     </div>
 
+    <?php if ($error): ?>
+      <script>document.addEventListener('DOMContentLoaded', () => showToast(<?= json_encode($error) ?>, 'danger'));</script>
+    <?php endif; ?>
     <?php if ($msg): ?>
       <script>document.addEventListener('DOMContentLoaded', () => showToast(<?= json_encode($msg) ?>));</script>
     <?php endif; ?>
@@ -185,6 +169,13 @@ include __DIR__ . '/../includes/sidebar.php';
     </div>
     <div class="modal-footer no-print">
       <button type="button" class="btn btn-ghost" onclick="closeModal('modalPayslip')">Close</button>
+      <form method="POST" action="<?= BASE_URL ?>/api/payslips_viewer.php" style="display:inline;" onsubmit="return confirm('Delete this payslip? This cannot be undone.');">
+          <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
+          <input type="hidden" name="action" value="delete_payslip">
+          <input type="hidden" name="payslip_id" id="modal_del_payslip_id" value="">
+          <input type="hidden" name="year" value="<?= htmlspecialchars($year) ?>">
+          <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+      </form>
       <button type="button" class="btn btn-primary" onclick="printPayslip()">Print / Save PDF</button>
     </div>
   </div>
@@ -211,6 +202,8 @@ function viewMyPayslip(p) {
     document.getElementById('ps_ded').textContent = formatPHP(p.total_deductions);
     
     document.getElementById('ps_net').textContent = formatPHP(p.net_pay);
+    const delInput = document.getElementById('modal_del_payslip_id');
+    if (delInput) delInput.value = p.id;
     
     openModal('modalPayslip');
 }

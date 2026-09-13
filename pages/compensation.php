@@ -7,57 +7,7 @@ $currentPage = 'compensation';
 $pdo = getDB();
 
 $empId = $_GET['emp_id'] ?? '';
-$error = '';
-$success = '';
-
-// Handle POST actions
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $empId) {
-    verifyCsrf();
-    $action = $_POST['action'] ?? '';
-    
-    try {
-        if ($action === 'update_salary') {
-            $pdo->beginTransaction();
-            $stmt = $pdo->prepare("UPDATE employees SET basic_salary = ? WHERE id = ?");
-            $stmt->execute([$_POST['basic_salary'], $empId]);
-            
-            $stmtHist = $pdo->prepare("INSERT INTO salary_history (employee_id, basic_salary, effective_date, reason) VALUES (?, ?, ?, ?)");
-            $stmtHist->execute([$empId, $_POST['basic_salary'], $_POST['effective_date'], $_POST['reason']]);
-            
-            auditLog('Salary Updated', "Updated salary for emp {$empId}");
-            $pdo->commit();
-            $success = 'Salary updated successfully.';
-        } elseif ($action === 'add_allowance') {
-            $stmt = $pdo->prepare("INSERT INTO allowances (employee_id, type, amount, frequency, is_active) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$empId, $_POST['type'], $_POST['amount'], $_POST['frequency'], isset($_POST['is_active']) ? 1 : 0]);
-            $success = 'Allowance added.';
-        } elseif ($action === 'edit_allowance') {
-            $stmt = $pdo->prepare("UPDATE allowances SET type=?, amount=?, frequency=?, is_active=? WHERE id=? AND employee_id=?");
-            $stmt->execute([$_POST['type'], $_POST['amount'], $_POST['frequency'], isset($_POST['is_active']) ? 1 : 0, $_POST['allowance_id'], $empId]);
-            $success = 'Allowance updated.';
-        } elseif ($action === 'delete_allowance') {
-            $stmt = $pdo->prepare("DELETE FROM allowances WHERE id=? AND employee_id=?");
-            $stmt->execute([$_POST['allowance_id'], $empId]);
-            $success = 'Allowance deleted.';
-        } elseif ($action === 'add_loan') {
-            $stmt = $pdo->prepare("INSERT INTO loans (employee_id, type, total_amount, monthly_deduction, remaining_balance, start_date) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$empId, $_POST['type'], $_POST['total_amount'], $_POST['monthly_deduction'], $_POST['total_amount'], $_POST['start_date']]);
-            $success = 'Loan added.';
-        } elseif ($action === 'delete_loan') {
-            $stmt = $pdo->prepare("DELETE FROM loans WHERE id=? AND employee_id=?");
-            $stmt->execute([$_POST['loan_id'], $empId]);
-            $success = 'Loan deleted.';
-        }
-        
-        // Redirect to avoid re-post on refresh
-        header('Location: ' . BASE_URL . "/index.php?page=compensation&emp_id={$empId}&msg=" . urlencode($success));
-        exit;
-    } catch (Exception $e) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
-        $error = "Error: " . $e->getMessage();
-    }
-}
-
+$error = $_GET['error'] ?? '';
 $msg = $_GET['msg'] ?? '';
 
 // Fetch Employees for dropdown
@@ -168,9 +118,10 @@ include __DIR__ . '/../includes/sidebar.php';
                 </div>
                 
                 <!-- Edit Salary Form (Hidden by default) -->
-                <form id="editSalForm" method="POST" style="display:none;background:var(--surface-alt);padding:16px;border-radius:var(--radius);margin-top:16px;">
+                <form id="editSalForm" method="POST" action="<?= BASE_URL ?>/api/compensation.php" style="display:none;background:var(--surface-alt);padding:16px;border-radius:var(--radius);margin-top:16px;">
                     <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
                     <input type="hidden" name="action" value="update_salary">
+                    <input type="hidden" name="emp_id" value="<?= htmlspecialchars($empId) ?>">
                     <h4 class="mb-4" style="color:var(--text-main);font-size:13px;">Update Basic Salary</h4>
                     <div class="form-row mb-4">
                         <div class="form-group mb-0"><label class="form-label required">New Basic Salary</label><input type="number" step="0.01" name="basic_salary" class="form-control" value="<?= $employee['basic_salary'] ?>" required></div>
@@ -225,9 +176,10 @@ include __DIR__ . '/../includes/sidebar.php';
                             <td><span class="badge badge-muted"><?= htmlspecialchars($a['frequency']) ?></span></td>
                             <td><?= $a['is_active'] ? '<span style="color:var(--success)">Yes</span>' : '<span class="td-muted">No</span>' ?></td>
                             <td>
-                                <form method="POST" style="display:inline;" onsubmit="return confirm('Delete this allowance?');">
+                                <form method="POST" action="<?= BASE_URL ?>/api/compensation.php" style="display:inline;" onsubmit="return confirm('Delete this allowance?');">
                                     <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
                                     <input type="hidden" name="action" value="delete_allowance">
+                                    <input type="hidden" name="emp_id" value="<?= htmlspecialchars($empId) ?>">
                                     <input type="hidden" name="allowance_id" value="<?= $a['id'] ?>">
                                     <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger)">Del</button>
                                 </form>
@@ -239,9 +191,10 @@ include __DIR__ . '/../includes/sidebar.php';
             </div>
             <div class="card-footer">
                 <button class="btn btn-secondary btn-sm mb-4" onclick="document.getElementById('addAllowForm').style.display='block'">+ Add Allowance</button>
-                <form id="addAllowForm" method="POST" style="display:none;background:var(--bg);padding:16px;border-radius:var(--radius);border:1px solid var(--border);">
+                <form id="addAllowForm" method="POST" action="<?= BASE_URL ?>/api/compensation.php" style="display:none;background:var(--bg);padding:16px;border-radius:var(--radius);border:1px solid var(--border);">
                     <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
                     <input type="hidden" name="action" value="add_allowance">
+                    <input type="hidden" name="emp_id" value="<?= htmlspecialchars($empId) ?>">
                     <div class="form-row mb-4">
                         <div class="form-group mb-0">
                             <label class="form-label required">Type</label>
@@ -294,9 +247,10 @@ include __DIR__ . '/../includes/sidebar.php';
                             <td style="color:var(--danger)">-<?= formatCurrency($l['monthly_deduction']) ?></td>
                             <td class="font-semibold"><?= formatCurrency($l['remaining_balance']) ?></td>
                             <td>
-                                <form method="POST" style="display:inline;" onsubmit="return confirm('Delete this loan?');">
+                                <form method="POST" action="<?= BASE_URL ?>/api/compensation.php" style="display:inline;" onsubmit="return confirm('Delete this loan?');">
                                     <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
                                     <input type="hidden" name="action" value="delete_loan">
+                                    <input type="hidden" name="emp_id" value="<?= htmlspecialchars($empId) ?>">
                                     <input type="hidden" name="loan_id" value="<?= $l['id'] ?>">
                                     <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger)">Del</button>
                                 </form>
@@ -308,9 +262,10 @@ include __DIR__ . '/../includes/sidebar.php';
             </div>
             <div class="card-footer">
                 <button class="btn btn-secondary btn-sm mb-4" onclick="document.getElementById('addLoanForm').style.display='block'">+ Add Loan</button>
-                <form id="addLoanForm" method="POST" style="display:none;background:var(--bg);padding:16px;border-radius:var(--radius);border:1px solid var(--border);">
+                <form id="addLoanForm" method="POST" action="<?= BASE_URL ?>/api/compensation.php" style="display:none;background:var(--bg);padding:16px;border-radius:var(--radius);border:1px solid var(--border);">
                     <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
                     <input type="hidden" name="action" value="add_loan">
+                    <input type="hidden" name="emp_id" value="<?= htmlspecialchars($empId) ?>">
                     <div class="form-row mb-4">
                         <div class="form-group mb-0">
                             <label class="form-label required">Type</label>

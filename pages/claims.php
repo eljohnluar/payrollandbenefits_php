@@ -11,26 +11,7 @@ ensureClaimRecipientSchema($pdo);
 $statusFilter = $_GET['status_filter'] ?? 'All';
 $selectedId = $_GET['selected_id'] ?? '';
 
-// Handle Actions
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    verifyCsrf();
-    $action = $_POST['action'] ?? '';
-    $claimId = $_POST['claim_id'] ?? '';
-    
-    if ($claimId) {
-        if ($action === 'approve_claim') {
-            $pdo->prepare("UPDATE claims SET status='Approved' WHERE id=?")->execute([$claimId]);
-            auditLog('Claim Approved', "Approved claim ID {$claimId}");
-            $msg = "Claim approved.";
-        } elseif ($action === 'reject_claim') {
-            $pdo->prepare("UPDATE claims SET status='Rejected' WHERE id=?")->execute([$claimId]);
-            auditLog('Claim Rejected', "Rejected claim ID {$claimId}");
-            $msg = "Claim rejected.";
-        }
-        header("Location: " . BASE_URL . "/index.php?page=claims&status_filter=".urlencode($statusFilter)."&selected_id={$claimId}&msg=" . urlencode($msg));
-        exit;
-    }
-}
+$error = $_GET['error'] ?? null;
 $msg = $_GET['msg'] ?? '';
 
 // Build Query
@@ -258,16 +239,18 @@ include __DIR__ . '/../includes/sidebar.php';
                     <!-- Action Buttons -->
                     <?php if($c['status'] === 'Pending' || $c['status'] === 'AI Review'): ?>
                     <div class="flex gap-2 mt-4 pt-4" style="border-top:1px solid var(--border);">
-                        <form method="POST" style="flex:1;">
+                        <form method="POST" action="<?= BASE_URL ?>/api/claims.php" style="flex:1;">
                             <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
                             <input type="hidden" name="action" value="approve_claim">
                             <input type="hidden" name="claim_id" value="<?= $c['id'] ?>">
+                            <input type="hidden" name="status_filter" value="<?= htmlspecialchars($statusFilter) ?>">
                             <button type="submit" class="btn btn-success w-full" style="justify-content:center;">Approve</button>
                         </form>
-                        <form method="POST" style="flex:1;">
+                        <form method="POST" action="<?= BASE_URL ?>/api/claims.php" style="flex:1;">
                             <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
                             <input type="hidden" name="action" value="reject_claim">
                             <input type="hidden" name="claim_id" value="<?= $c['id'] ?>">
+                            <input type="hidden" name="status_filter" value="<?= htmlspecialchars($statusFilter) ?>">
                             <button type="submit" class="btn btn-danger w-full" style="justify-content:center;" onclick="return confirm('Reject this claim?')">Reject</button>
                         </form>
                     </div>

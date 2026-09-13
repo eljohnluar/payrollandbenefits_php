@@ -39,7 +39,8 @@ if (notifBtn && notifDD) {
   document.addEventListener('click', () => { if (notifDD) notifDD.style.display = 'none'; });
 }
 function markAllRead() {
-  fetch('?action=mark_notif_read', { method: 'POST' })
+  const notifUrl = (typeof BASE_URL !== 'undefined' ? BASE_URL : '/payrollandbenefits_php') + '/api/notifications.php?action=mark_notif_read';
+  fetch(notifUrl, { method: 'POST' })
     .then(() => { if (notifDD) notifDD.querySelectorAll('[style*="rgba"]').forEach(el => el.style.background = 'transparent'); });
 }
 

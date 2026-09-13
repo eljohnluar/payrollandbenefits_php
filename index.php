@@ -11,6 +11,15 @@ if (!in_array($page, $publicPages)) {
     requireLogin();
 }
 
+// Route POST requests to api/ if endpoint exists
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $apiFile = __DIR__ . '/api/' . $page . '.php';
+    if (file_exists($apiFile)) {
+        require $apiFile;
+        exit;
+    }
+}
+
 $pageFile = __DIR__ . '/pages/' . $page . '.php';
 
 if (!file_exists($pageFile)) {

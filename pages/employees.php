@@ -6,81 +6,7 @@ $pageTitle = 'Employees';
 $currentPage = 'employees';
 $pdo = getDB();
 
-// Handle POST actions
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    verifyCsrf();
-    $action = $_POST['action'] ?? '';
-
-    if ($action === 'create_employee') {
-        try {
-            $pdo->beginTransaction();
-            
-            // Generate next code
-            $lastCode = $pdo->query("SELECT code FROM employees ORDER BY id DESC LIMIT 1")->fetchColumn();
-            $nextNum = 1;
-            if ($lastCode && preg_match('/EMP-\d{4}-(\d+)/', $lastCode, $matches)) {
-                $nextNum = intval($matches[1]) + 1;
-            }
-            $code = 'EMP-' . date('Y') . '-' . str_pad($nextNum, 3, '0', STR_PAD_LEFT);
-            $id = 'emp-' . uniqid();
-            
-            $stmt = $pdo->prepare("
-                INSERT INTO employees 
-                (id, code, first_name, middle_name, last_name, suffix, email, mobile, birth_date, gender, department, position, employment_type, hire_date, basic_salary, status, sss, philhealth, pagibig, tin, ewallet_provider, ewallet_account, ewallet_name) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ");
-            
-            $stmt->execute([
-                $id,
-                $code,
-                $_POST['first_name'],
-                $_POST['middle_name'] ?: null,
-                $_POST['last_name'],
-                $_POST['suffix'] ?: null,
-                $_POST['email'] ?: null,
-                $_POST['mobile'] ?: null,
-                $_POST['birth_date'] ?: null,
-                $_POST['gender'] ?: null,
-                $_POST['department'],
-                $_POST['position'],
-                $_POST['employment_type'],
-                $_POST['hire_date'],
-                $_POST['basic_salary'] ?: 0,
-                $_POST['status'],
-                $_POST['sss'] ?: null,
-                $_POST['philhealth'] ?: null,
-                $_POST['pagibig'] ?: null,
-                $_POST['tin'] ?: null,
-                $_POST['ewallet_provider'] ?: null,
-                $_POST['ewallet_account'] ?: null,
-                $_POST['ewallet_name'] ?: null
-            ]);
-            
-            // Insert initial salary history
-            $stmtHist = $pdo->prepare("INSERT INTO salary_history (employee_id, basic_salary, effective_date, reason) VALUES (?, ?, ?, ?)");
-            $stmtHist->execute([$id, $_POST['basic_salary'] ?: 0, $_POST['hire_date'], 'Initial salary on hire']);
-            
-            auditLog('Employee Created', "Created employee {$code} - {$_POST['first_name']} {$_POST['last_name']}");
-            $pdo->commit();
-            header('Location: ' . BASE_URL . '/index.php?page=employees&success=created');
-            exit;
-        } catch (Exception $e) {
-            $pdo->rollBack();
-            $error = "Error creating employee: " . $e->getMessage();
-        }
-    } elseif ($action === 'delete_employee') {
-        try {
-            $empId = $_POST['employee_id'];
-            $stmt = $pdo->prepare("DELETE FROM employees WHERE id = ?");
-            $stmt->execute([$empId]);
-            auditLog('Employee Deleted', "Deleted employee ID {$empId}");
-            header('Location: ' . BASE_URL . '/index.php?page=employees&success=deleted');
-            exit;
-        } catch (Exception $e) {
-            $error = "Error deleting employee: " . $e->getMessage();
-        }
-    }
-}
+$error = $_GET['error'] ?? null;
 
 // Fetch stats
 $statTotal = $pdo->query("SELECT COUNT(*) FROM employees")->fetchColumn();
@@ -239,27 +165,26 @@ include __DIR__ . '/../includes/sidebar.php';
 
 <!-- Modal: Create Employee -->
 <div id="modalCreate" class="modal-backdrop" style="display:none;">
-  <div class="modal-box modal-lg">
-    <form method="POST">
-      <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
-      <input type="hidden" name="action" value="create_employee">
-      
-      <div class="modal-header">
-        <h3>Add New Employee</h3>
-        <button type="button" class="modal-close" onclick="closeModal('modalCreate')">&times;</button>
-      </div>
-      
-      <div class="modal-body">
-        <h4 style="margin-bottom:12px;font-size:13px;color:var(--text-main)">Personal Information</h4>
-        <div class="form-row">
-            <div class="form-group"><label class="form-label required">First Name</label><input type="text" name="first_name" class="form-control" required></div>
-            <div class="form-group"><label class="form-label">Middle Name</label><input type="text" name="middle_name" class="form-control"></div>
-            <div class="form-group"><label class="form-label required">Last Name</label><input type="text" name="last_name" class="form-control" required></div>
+  <form method="POST" action="<?= BASE_URL ?>/api/employees.php" class="modal-box modal-lg">
+    <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
+    <input type="hidden" name="action" value="create_employee">
+    
+    <div class="modal-header">
+      <h3>Add New Employee</h3>
+      <button type="button" class="modal-close" onclick="closeModal('modalCreate')">&times;</button>
+    </div>
+    
+    <div class="modal-body">
+        <div class="form-section-title">Personal Information</div>
+        <div class="form-grid-4">
+            <div class="form-group"><label class="form-label required">First Name</label><input type="text" name="first_name" class="form-control" required placeholder="First name"></div>
+            <div class="form-group"><label class="form-label">Middle Name</label><input type="text" name="middle_name" class="form-control" placeholder="Middle name"></div>
+            <div class="form-group"><label class="form-label required">Last Name</label><input type="text" name="last_name" class="form-control" required placeholder="Last name"></div>
             <div class="form-group"><label class="form-label">Suffix</label><input type="text" name="suffix" class="form-control" placeholder="Jr., Sr., III"></div>
         </div>
-        <div class="form-row">
-            <div class="form-group"><label class="form-label">Email Address</label><input type="email" name="email" class="form-control"></div>
-            <div class="form-group"><label class="form-label">Mobile Number</label><input type="text" name="mobile" class="form-control"></div>
+        <div class="form-grid-4">
+            <div class="form-group"><label class="form-label">Email Address</label><input type="email" name="email" class="form-control" placeholder="email@company.com"></div>
+            <div class="form-group"><label class="form-label">Mobile Number</label><input type="text" name="mobile" class="form-control" placeholder="09XXXXXXXXX"></div>
             <div class="form-group"><label class="form-label">Birth Date</label><input type="date" name="birth_date" class="form-control"></div>
             <div class="form-group">
                 <label class="form-label">Gender</label>
@@ -272,9 +197,8 @@ include __DIR__ . '/../includes/sidebar.php';
             </div>
         </div>
 
-        <hr class="divider">
-        <h4 style="margin-bottom:12px;font-size:13px;color:var(--text-main)">Employment Information</h4>
-        <div class="form-row">
+        <div class="form-section-title">Employment Information</div>
+        <div class="form-grid-3">
             <div class="form-group">
                 <label class="form-label required">Department</label>
                 <select name="department" class="form-control" required>
@@ -286,7 +210,7 @@ include __DIR__ . '/../includes/sidebar.php';
                     <option value="Marketing">Marketing</option>
                 </select>
             </div>
-            <div class="form-group"><label class="form-label required">Position</label><input type="text" name="position" class="form-control" required></div>
+            <div class="form-group"><label class="form-label required">Position</label><input type="text" name="position" class="form-control" placeholder="e.g. Software Engineer" required></div>
             <div class="form-group">
                 <label class="form-label required">Employment Type</label>
                 <select name="employment_type" class="form-control" required>
@@ -296,7 +220,7 @@ include __DIR__ . '/../includes/sidebar.php';
                 </select>
             </div>
         </div>
-        <div class="form-row">
+        <div class="form-grid-2">
             <div class="form-group"><label class="form-label required">Hire Date</label><input type="date" name="hire_date" class="form-control" value="<?= date('Y-m-d') ?>" required></div>
             <div class="form-group">
                 <label class="form-label required">Status</label>
@@ -309,35 +233,32 @@ include __DIR__ . '/../includes/sidebar.php';
             </div>
         </div>
 
-        <hr class="divider">
-        <h4 style="margin-bottom:12px;font-size:13px;color:var(--text-main)">Compensation</h4>
-        <div class="form-row">
+        <div class="form-section-title">Compensation</div>
+        <div class="form-grid-3">
             <div class="form-group">
                 <label class="form-label required">Monthly Basic Salary</label>
-                <input type="number" step="0.01" id="newBasicSal" name="basic_salary" class="form-control" required oninput="computeRates('newBasicSal', 'newDailyRate', 'newHourlyRate')">
+                <input type="number" step="0.01" id="newBasicSal" name="basic_salary" class="form-control" placeholder="0.00" required oninput="computeRates('newBasicSal', 'newDailyRate', 'newHourlyRate')">
             </div>
             <div class="form-group">
                 <label class="form-label">Daily Rate (Est.)</label>
-                <input type="text" id="newDailyRate" class="form-control" readonly style="background:var(--surface-alt)">
+                <input type="text" id="newDailyRate" class="form-control" readonly placeholder="0.00" style="background:var(--surface-alt)">
             </div>
             <div class="form-group">
                 <label class="form-label">Hourly Rate (Est.)</label>
-                <input type="text" id="newHourlyRate" class="form-control" readonly style="background:var(--surface-alt)">
+                <input type="text" id="newHourlyRate" class="form-control" readonly placeholder="0.00" style="background:var(--surface-alt)">
             </div>
         </div>
 
-        <hr class="divider">
-        <h4 style="margin-bottom:12px;font-size:13px;color:var(--text-main)">Government IDs</h4>
-        <div class="form-row">
-            <div class="form-group"><label class="form-label">SSS Number</label><input type="text" name="sss" class="form-control"></div>
-            <div class="form-group"><label class="form-label">PhilHealth Number</label><input type="text" name="philhealth" class="form-control"></div>
-            <div class="form-group"><label class="form-label">Pag-IBIG Number</label><input type="text" name="pagibig" class="form-control"></div>
-            <div class="form-group"><label class="form-label">TIN Number</label><input type="text" name="tin" class="form-control"></div>
+        <div class="form-section-title">Government IDs</div>
+        <div class="form-grid-4">
+            <div class="form-group"><label class="form-label">SSS Number</label><input type="text" name="sss" class="form-control" placeholder="XX-XXXXXXX-X"></div>
+            <div class="form-group"><label class="form-label">PhilHealth Number</label><input type="text" name="philhealth" class="form-control" placeholder="XX-XXXXXXXXX-X"></div>
+            <div class="form-group"><label class="form-label">Pag-IBIG Number</label><input type="text" name="pagibig" class="form-control" placeholder="XXXX-XXXX-XXXX"></div>
+            <div class="form-group"><label class="form-label">TIN Number</label><input type="text" name="tin" class="form-control" placeholder="XXX-XXX-XXX-XXX"></div>
         </div>
 
-        <hr class="divider">
-        <h4 style="margin-bottom:12px;font-size:13px;color:var(--text-main)">E-Wallet & Payment Details</h4>
-        <div class="form-row">
+        <div class="form-section-title">E-Wallet & Payment Details</div>
+        <div class="form-grid-3">
             <div class="form-group">
                 <label class="form-label">Provider</label>
                 <select id="provSelect" name="ewallet_provider" class="form-control" onchange="onProviderChange(this, document.getElementById('accInput'), document.getElementById('accFeed'))">
@@ -353,12 +274,12 @@ include __DIR__ . '/../includes/sidebar.php';
             </div>
             <div class="form-group">
                 <label class="form-label">Account Number</label>
-                <input type="text" id="accInput" name="ewallet_account" class="form-control" oninput="onAccountInput(document.getElementById('provSelect'), this, document.getElementById('accFeed'))">
+                <input type="text" id="accInput" name="ewallet_account" class="form-control" placeholder="Account Number" oninput="onAccountInput(document.getElementById('provSelect'), this, document.getElementById('accFeed'))">
                 <div id="accFeed" style="font-size:11px;margin-top:4px;"></div>
             </div>
             <div class="form-group">
                 <label class="form-label">Account Name</label>
-                <input type="text" name="ewallet_name" class="form-control">
+                <input type="text" name="ewallet_name" class="form-control" placeholder="Account Name / Holder">
             </div>
         </div>
       </div>
@@ -368,7 +289,6 @@ include __DIR__ . '/../includes/sidebar.php';
         <button type="submit" class="btn btn-primary">Save Employee</button>
       </div>
     </form>
-  </div>
 </div>
 
 <!-- Modal: View Employee -->
@@ -391,27 +311,25 @@ include __DIR__ . '/../includes/sidebar.php';
 
 <!-- Modal: Delete -->
 <div id="modalDelete" class="modal-backdrop" style="display:none;">
-  <div class="modal-box">
-    <form method="POST">
-      <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
-      <input type="hidden" name="action" value="delete_employee">
-      <input type="hidden" name="employee_id" id="delEmpId">
-      
-      <div class="modal-header">
-        <h3 style="color:var(--danger)">Delete Employee</h3>
-        <button type="button" class="modal-close" onclick="closeModal('modalDelete')">&times;</button>
-      </div>
-      <div class="modal-body text-center">
-        <svg width="48" height="48" fill="none" stroke="var(--danger)" stroke-width="2" viewBox="0 0 24 24" style="margin:0 auto 16px;"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        <p>Are you sure you want to delete <strong id="delEmpName"></strong>?</p>
-        <p class="text-muted mt-4">This action cannot be undone and will cascade delete associated records.</p>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-ghost" onclick="closeModal('modalDelete')">Cancel</button>
-        <button type="submit" class="btn btn-danger">Delete Employee</button>
-      </div>
-    </form>
-  </div>
+  <form method="POST" action="<?= BASE_URL ?>/api/employees.php" class="modal-box">
+    <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
+    <input type="hidden" name="action" value="delete_employee">
+    <input type="hidden" name="employee_id" id="delEmpId">
+    
+    <div class="modal-header">
+      <h3 style="color:var(--danger)">Delete Employee</h3>
+      <button type="button" class="modal-close" onclick="closeModal('modalDelete')">&times;</button>
+    </div>
+    <div class="modal-body text-center">
+      <svg width="48" height="48" fill="none" stroke="var(--danger)" stroke-width="2" viewBox="0 0 24 24" style="margin:0 auto 16px;"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <p>Are you sure you want to delete <strong id="delEmpName"></strong>?</p>
+      <p class="text-muted mt-4">This action cannot be undone and will cascade delete associated records.</p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" onclick="closeModal('modalDelete')">Cancel</button>
+      <button type="submit" class="btn btn-danger">Delete Employee</button>
+    </div>
+  </form>
 </div>
 
 <script>

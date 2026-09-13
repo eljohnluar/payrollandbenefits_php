@@ -6,27 +6,14 @@ $pageTitle = '13th Month Pay';
 $currentPage = 'thirteenth_month';
 $pdo = getDB();
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    verifyCsrf();
-    $action = $_POST['action'] ?? '';
-    if ($action === 'approve') {
-        $pdo->prepare("UPDATE thirteenth_month SET status='Approved' WHERE id=?")->execute([$_POST['record_id']]);
-        auditLog('13th Month Approved', "Approved record {$_POST['record_id']}");
-        $msg = "Approved successfully.";
-    } elseif ($action === 'mark_paid') {
-        $pdo->prepare("UPDATE thirteenth_month SET status='Paid', payment_date=CURRENT_DATE WHERE id=?")->execute([$_POST['record_id']]);
-        auditLog('13th Month Paid', "Marked record {$_POST['record_id']} as paid");
-        $msg = "Marked as paid.";
-    }
-    header("Location: " . BASE_URL . "/index.php?page=thirteenth_month&msg=" . urlencode($msg));
-    exit;
-}
-
+$error = $_GET['error'] ?? null;
 $msg = $_GET['msg'] ?? '';
 $year = $_GET['year'] ?? date('Y');
 
 // Fetch records
-$records = $pdo->query("SELECT * FROM thirteenth_month WHERE year=$year ORDER BY employee_name")->fetchAll();
+$stmtRec = $pdo->prepare("SELECT * FROM thirteenth_month WHERE year = ? ORDER BY employee_name");
+$stmtRec->execute([$year]);
+$records = $stmtRec->fetchAll();
 
 $totComputed = 0; $totApp = 0; $totPaid = 0; $pendingCount = 0;
 foreach($records as $r) {
@@ -50,6 +37,7 @@ include __DIR__ . '/../includes/sidebar.php';
       </div>
     </div>
 
+    <?php if ($error): ?><div class="error-msg"><?= htmlspecialchars($error) ?></div><?php endif; ?>
     <?php if ($msg): ?><script>document.addEventListener('DOMContentLoaded', ()=>showToast('<?= htmlspecialchars($msg) ?>'));</script><?php endif; ?>
 
     <div class="stats-grid mb-4">
@@ -105,14 +93,14 @@ include __DIR__ . '/../includes/sidebar.php';
                         <td><span class="badge <?= getStatusBadgeClass($r['status']) ?>"><?= htmlspecialchars($r['status']) ?></span></td>
                         <td>
                             <?php if($r['status'] === 'Pending'): ?>
-                                <form method="POST">
+                                <form method="POST" action="<?= BASE_URL ?>/api/thirteenth_month.php">
                                     <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
                                     <input type="hidden" name="action" value="approve">
                                     <input type="hidden" name="record_id" value="<?= $r['id'] ?>">
                                     <button class="btn btn-success btn-sm">Approve</button>
                                 </form>
                             <?php elseif($r['status'] === 'Approved'): ?>
-                                <form method="POST">
+                                <form method="POST" action="<?= BASE_URL ?>/api/thirteenth_month.php">
                                     <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
                                     <input type="hidden" name="action" value="mark_paid">
                                     <input type="hidden" name="record_id" value="<?= $r['id'] ?>">

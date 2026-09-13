@@ -10,47 +10,7 @@ $selectedDate = $_GET['selected_date'] ?? date('Y-m-d');
 $currentMonth = date('Y-m', strtotime($selectedDate));
 $msg = $_GET['msg'] ?? '';
 
-// Handle POST actions
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    verifyCsrf();
-    $action = $_POST['action'] ?? '';
-    
-    try {
-        if ($action === 'save_attendance') {
-            $pdo->beginTransaction();
-            $stmt = $pdo->prepare("INSERT INTO attendance_logs (employee_id, log_date, status, ot_hours, notes) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE status=VALUES(status), ot_hours=VALUES(ot_hours), notes=VALUES(notes)");
-            
-            $employees = $_POST['emp'] ?? [];
-            foreach($employees as $empId => $data) {
-                if (!empty($data['status'])) {
-                    $ot = ($data['status'] === 'OT') ? (float)$data['ot_hours'] : 0;
-                    $stmt->execute([$empId, $selectedDate, $data['status'], $ot, $data['notes']]);
-                }
-            }
-            $pdo->commit();
-            $msg = "Attendance saved successfully.";
-        } elseif ($action === 'mark_all_present') {
-            $pdo->beginTransaction();
-            $emps = $pdo->query("SELECT id FROM employees WHERE status IN ('Active', 'On Leave')")->fetchAll(PDO::FETCH_COLUMN);
-            $stmt = $pdo->prepare("INSERT INTO attendance_logs (employee_id, log_date, status, ot_hours, notes) VALUES (?, ?, 'P', 0, '') ON DUPLICATE KEY UPDATE status='P', ot_hours=0");
-            foreach($emps as $empId) {
-                $stmt->execute([$empId, $selectedDate]);
-            }
-            $pdo->commit();
-            $msg = "All marked present.";
-        } elseif ($action === 'clear_attendance') {
-            $stmt = $pdo->prepare("DELETE FROM attendance_logs WHERE log_date = ?");
-            $stmt->execute([$selectedDate]);
-            $msg = "Attendance cleared for date.";
-        }
-        
-        header("Location: " . BASE_URL . "/index.php?page=attendance&selected_date={$selectedDate}&msg=" . urlencode($msg));
-        exit;
-    } catch (Exception $e) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
-        $error = "Error: " . $e->getMessage();
-    }
-}
+$error = $_GET['error'] ?? null;
 
 // Fetch Active Employees
 $activeEmps = $pdo->query("SELECT id, code, first_name, last_name, department FROM employees WHERE status IN ('Active', 'On Leave') ORDER BY first_name")->fetchAll();
@@ -128,15 +88,17 @@ include __DIR__ . '/../includes/sidebar.php';
 
     <!-- Bulk Actions -->
     <div class="quick-actions">
-        <form method="POST" style="display:inline;">
+        <form method="POST" action="<?= BASE_URL ?>/api/attendance.php" style="display:inline;">
             <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
             <input type="hidden" name="action" value="mark_all_present">
+            <input type="hidden" name="selected_date" value="<?= htmlspecialchars($selectedDate) ?>">
             <button type="submit" class="btn btn-secondary btn-sm" onclick="return confirm('Mark all active employees as Present?')">Mark All Present</button>
         </form>
         <a href="?page=attendance&selected_date=<?= date('Y-m-d', strtotime($selectedDate . ' -1 day')) ?>" class="btn btn-secondary btn-sm">Copy Previous Day</a>
-        <form method="POST" style="display:inline;">
+        <form method="POST" action="<?= BASE_URL ?>/api/attendance.php" style="display:inline;">
             <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
             <input type="hidden" name="action" value="clear_attendance">
+            <input type="hidden" name="selected_date" value="<?= htmlspecialchars($selectedDate) ?>">
             <button type="submit" class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="return confirm('Clear attendance for this date?')">Clear All</button>
         </form>
     </div>
@@ -150,9 +112,10 @@ include __DIR__ . '/../includes/sidebar.php';
     <!-- Daily Entry Tab -->
     <div data-tab-group="att" data-tab="daily">
         <div class="card">
-            <form id="attSaveForm" method="POST">
+            <form id="attSaveForm" method="POST" action="<?= BASE_URL ?>/api/attendance.php">
                 <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
                 <input type="hidden" name="action" value="save_attendance">
+                <input type="hidden" name="selected_date" value="<?= htmlspecialchars($selectedDate) ?>">
                 <div class="table-wrap">
                     <table>
                         <thead>

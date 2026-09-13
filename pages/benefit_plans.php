@@ -6,13 +6,7 @@ $pageTitle = 'Benefit Plans';
 $currentPage = 'benefit_plans';
 $pdo = getDB();
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'save_plan') {
-    verifyCsrf();
-    $stmt = $pdo->prepare("UPDATE benefit_plans SET monthly_premium=?, employer_share=? WHERE id=?");
-    $stmt->execute([$_POST['monthly_premium'], $_POST['employer_share'], $_POST['plan_id']]);
-    header('Location: ' . BASE_URL . '/index.php?page=benefit_plans&msg=' . urlencode('Plan updated.'));
-    exit;
-}
+$error = $_GET['error'] ?? null;
 $msg = $_GET['msg'] ?? '';
 
 $plans = $pdo->query("SELECT * FROM benefit_plans ORDER BY id")->fetchAll();
@@ -31,6 +25,7 @@ include __DIR__ . '/../includes/sidebar.php';
       </div>
     </div>
 
+    <?php if ($error): ?><div class="error-msg"><?= htmlspecialchars($error) ?></div><?php endif; ?>
     <?php if ($msg): ?><script>document.addEventListener('DOMContentLoaded', ()=>showToast('<?= htmlspecialchars($msg) ?>'));</script><?php endif; ?>
 
     <div class="grid-2">
@@ -81,7 +76,7 @@ include __DIR__ . '/../includes/sidebar.php';
 
 <div id="modalPlan" class="modal-backdrop" style="display:none;">
   <div class="modal-box">
-    <form method="POST">
+    <form method="POST" action="<?= BASE_URL ?>/api/benefit_plans.php">
       <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
       <input type="hidden" name="action" value="save_plan">
       <input type="hidden" name="plan_id" id="pl_id">

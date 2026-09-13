@@ -6,36 +6,8 @@ if (isLoggedIn()) {
     exit;
 }
 
-$error = '';
-$success = '';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    verifyCsrf();
-    $username = trim($_POST['username'] ?? '');
-    $password = $_POST['password'] ?? '';
-    
-    if (!$username || !$password) {
-        $error = 'Username and password are required.';
-    } else {
-        $pdo = getDB();
-        // Check if username already exists
-        $stmt = $pdo->prepare('SELECT id FROM users WHERE email = ?');
-        $stmt->execute([$username]);
-        if ($stmt->fetch()) {
-            $error = 'Username is already taken.';
-        } else {
-            $hashed = password_hash($password, PASSWORD_DEFAULT);
-            $initials = strtoupper(substr($username, 0, 2));
-            
-            $insert = $pdo->prepare("INSERT INTO users (email, password, name, role, initials, is_active) VALUES (?, ?, ?, 'HR', ?, 1)");
-            if ($insert->execute([$username, $hashed, $username, $initials])) {
-                $success = 'Registration successful. You can now login.';
-            } else {
-                $error = 'An error occurred during registration.';
-            }
-        }
-    }
-}
+$error = $_GET['error'] ?? '';
+$success = $_GET['success'] ?? '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -69,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <a href="<?= BASE_URL ?>/index.php?page=login" style="font-weight:bold; color:var(--success); text-decoration:underline;">Click here to sign in</a>
       </div>
     <?php else: ?>
-        <form method="POST">
+        <form method="POST" action="<?= BASE_URL ?>/api/register.php">
           <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
           
           <div class="form-group">

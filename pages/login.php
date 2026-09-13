@@ -6,19 +6,7 @@ if (isLoggedIn()) {
     exit;
 }
 
-$error = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    verifyCsrf();
-    $email = $_POST['email'] ?? '';
-    $password = $_POST['password'] ?? '';
-    
-    if (loginUser($email, $password)) {
-        header('Location: ' . BASE_URL . '/index.php?page=dashboard');
-        exit;
-    } else {
-        $error = 'Invalid email or password.';
-    }
-}
+$error = $_GET['error'] ?? '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -46,12 +34,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="error-msg"><?= htmlspecialchars($error) ?></div>
     <?php endif; ?>
 
-    <form method="POST">
+    <form method="POST" action="<?= BASE_URL ?>/api/login.php">
       <input type="hidden" name="csrf_token" value="<?= csrfToken() ?>">
       
       <div class="form-group">
         <label class="form-label required" for="login-username">Username</label>
-        <input type="text" id="login-username" name="email" class="form-control" placeholder="Enter your username" required value="<?= htmlspecialchars($_POST['email'] ?? '') ?>">
+        <input type="text" id="login-username" name="email" class="form-control" placeholder="Enter your username" required value="<?= htmlspecialchars($_GET['email'] ?? '') ?>">
       </div>
       
       <div class="form-group mb-4">

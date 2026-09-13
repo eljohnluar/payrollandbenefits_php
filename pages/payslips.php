@@ -10,12 +10,6 @@ $empFilter = $_GET['emp_id'] ?? '';
 $periodFilter = $_GET['period'] ?? '';
 $viewId = $_GET['viewing_id'] ?? '';
 
-// Handle Print Action (Redirect)
-if (isset($_POST['action']) && $_POST['action'] === 'print') {
-    $id = $_POST['viewing_id'] ?? '';
-    header("Location: " . BASE_URL . "/index.php?page=payslips&viewing_id={$id}&print=1");
-    exit;
-}
 
 // Fetch filters
 $employees = $pdo->query("SELECT DISTINCT employee_id, employee_name FROM payroll_items ORDER BY employee_name")->fetchAll();
@@ -165,11 +159,7 @@ include __DIR__ . '/../includes/sidebar.php';
                 </div>
                 
                 <div class="flex justify-end mt-4 no-print gap-2">
-                    <form method="POST">
-                        <input type="hidden" name="action" value="print">
-                        <input type="hidden" name="viewing_id" value="<?= $preview['id'] ?>">
-                        <button type="button" class="btn btn-primary" onclick="printPayslip()">Print / Save PDF</button>
-                    </form>
+                    <button type="button" class="btn btn-primary" onclick="printPayslip()">Print / Save PDF</button>
                 </div>
                 <?php if ($autoPrint): ?>
                 <script>document.addEventListener('DOMContentLoaded', ()=>window.print());</script>
